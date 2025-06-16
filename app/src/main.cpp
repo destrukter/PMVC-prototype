@@ -47,7 +47,9 @@ int main(int argc, char *argv[])
     igl::edges(Fcage, Ecage);
     igl::edges(FcageDeformed, EcageDeformed);
 
-    Eigen::MatrixXd weights = computePMVCForMesh(Vmesh, Vcage, Fcage);
+    // TODO add calculation
+    Eigen::MatrixXd weights;
+    // Eigen::MatrixXd weights = computePMVCForMesh(Vmesh, Vcage, Fcage);
 
     Eigen::MatrixXd Vdeformed = applyDeformation(weights, VcageDeformed);
 

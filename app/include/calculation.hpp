@@ -9,19 +9,23 @@
 #include <fstream>
 #include <string>
 
+/*
 /// Compute Point Mean Value Coordinates (PMVC) for a single query point.
 Eigen::VectorXd computePMVC(
     const Eigen::MatrixXd &V,   // cage vertices (Nx3)
     const Eigen::MatrixXi &F,   // cage faces (Mx3)
     const Eigen::RowVector3d &p // query point (1x3)
 );
+*/
 
+/*
 /// Compute PMVC for an entire mesh of query points.
 Eigen::MatrixXd computePMVCForMesh(
     const Eigen::MatrixXd &Vmesh, // query mesh vertices (Px3)
     const Eigen::MatrixXd &Vcage, // cage vertices (Nx3)
     const Eigen::MatrixXi &Fcage  // cage faces (Mx3)
 );
+*/
 
 /// Apply deformation using PMVC weights and deformed cage.
 Eigen::MatrixXd applyDeformation(
