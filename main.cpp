@@ -1,0 +1,172 @@
+#include <igl/read_triangle_mesh.h>
+#include <igl/per_face_normals.h>
+#include <Eigen/Core>
+#include <vector>
+#include <cmath>
+#include <iostream>
+#include <igl/opengl/glfw/Viewer.h>
+#include <igl/edges.h>
+#include <igl/writeOBJ.h>
+
+// Compute Positive Mean Value Coordinates for a single vertex
+Eigen::VectorXd computePMVC(
+    const Eigen::MatrixXd &V,   // cage vertices (Nx3)
+    const Eigen::MatrixXi &F,   // cage faces (Mx3)
+    const Eigen::RowVector3d &p // query point (1x3)
+)
+{
+    Eigen::VectorXd weights = Eigen::VectorXd::Zero(V.rows());
+
+    Eigen::MatrixXd FN; // face normals
+    igl::per_face_normals(V, F, FN);
+
+    for (int i = 0; i < F.rows(); ++i)
+    {
+        // Get triangle vertices
+        Eigen::RowVector3d v0 = V.row(F(i, 0));
+        Eigen::RowVector3d v1 = V.row(F(i, 1));
+        Eigen::RowVector3d v2 = V.row(F(i, 2));
+
+        Eigen::RowVector3d r0 = v0 - p;
+        Eigen::RowVector3d r1 = v1 - p;
+        Eigen::RowVector3d r2 = v2 - p;
+
+        double r0_len = r0.norm();
+        double r1_len = r1.norm();
+        double r2_len = r2.norm();
+
+        double triple = r0.dot(r1.cross(r2));
+
+        double denom =
+            r0_len * r1_len * r2_len +
+            r0.dot(r1) * r2_len +
+            r1.dot(r2) * r0_len +
+            r2.dot(r0) * r1_len;
+
+        double omega = 2.0 * atan2(triple, denom);
+
+        // Ensure positive contribution
+        omega = std::abs(omega);
+
+        // Compute area of triangle (or reuse FN)
+        double area = 0.5 * (v1 - v0).cross(v2 - v0).norm();
+
+        double w0 = omega / (r0_len * area);
+        double w1 = omega / (r1_len * area);
+        double w2 = omega / (r2_len * area);
+
+        // Accumulate
+        weights(F(i, 0)) += w0;
+        weights(F(i, 1)) += w1;
+        weights(F(i, 2)) += w2;
+    }
+
+    // Normalize
+    double sum = weights.sum();
+    if (sum > 0)
+    {
+        weights /= sum;
+    }
+
+    return weights;
+}
+
+Eigen::MatrixXd
+applyDeformation(
+    const Eigen::MatrixXd &weights,
+    const Eigen::MatrixXd &VdeformedCage)
+{
+    return weights * VdeformedCage; // Each vertex is a weighted sum of deformed cage vertices
+}
+
+Eigen::MatrixXd computePMVCForMesh(
+    const Eigen::MatrixXd &Vmesh,
+    const Eigen::MatrixXd &Vcage,
+    const Eigen::MatrixXi &Fcage)
+{
+    Eigen::MatrixXd weights(Vmesh.rows(), Vcage.rows());
+
+    for (int i = 0; i < Vmesh.rows(); ++i)
+    {
+        weights.row(i) = computePMVC(Vcage, Fcage, Vmesh.row(i)).transpose();
+    }
+
+    return weights;
+}
+
+bool fileExists(const std::string &path)
+{
+    std::ifstream file(path);
+    return file.good();
+}
+
+int main(int argc, char *argv[])
+{
+    Eigen::MatrixXd Vmesh;
+    Eigen::MatrixXi Fmesh;
+
+    Eigen::MatrixXd Vcage;
+    Eigen::MatrixXi Fcage;
+    Eigen::MatrixXi Ecage;
+
+    Eigen::MatrixXd VcageDeformed;
+    Eigen::MatrixXi FcageDeformed;
+    Eigen::MatrixXi EcageDeformed;
+
+    std::string meshPath = "";
+    std::string cagePath = "";
+    std::string deformedCagePath = "";
+
+    if (argc == 4)
+    {
+        meshPath = argv[1];
+        cagePath = argv[2];
+        deformedCagePath = argv[3];
+    }
+
+    const std::string defaultMesh = "/home/destukter/Thesis/PMVC-test/meshes/armadilloman.obj";
+    const std::string defaultCage = "/home/destukter/Thesis/PMVC-test/meshes/armadilloman_cages_triangulated.obj";
+    const std::string defaultDeformedCage = "/home/destukter/Thesis/PMVC-test/meshes/armadilloman_cages_triangulated_deformed_1.obj";
+
+    std::string finalMeshPath = fileExists(meshPath) ? meshPath : defaultMesh;
+    std::string finalCagePath = fileExists(cagePath) ? cagePath : defaultCage;
+    std::string finalDeformedCagePath = fileExists(deformedCagePath) ? deformedCagePath : defaultDeformedCage;
+
+    igl::read_triangle_mesh(finalMeshPath, Vmesh, Fmesh);
+    igl::read_triangle_mesh(finalCagePath, Vcage, Fcage);
+    igl::read_triangle_mesh(finalDeformedCagePath, VcageDeformed, FcageDeformed);
+
+    igl::edges(Fcage, Ecage);
+    igl::edges(FcageDeformed, EcageDeformed);
+
+    Eigen::MatrixXd weights = computePMVCForMesh(Vmesh, Vcage, Fcage);
+
+    Eigen::MatrixXd Vdeformed = applyDeformation(weights, VcageDeformed);
+
+    double offset = (Vmesh.col(0).maxCoeff() - Vmesh.col(0).minCoeff()) * 1.5;
+    Vdeformed.col(0).array() += offset;
+    VcageDeformed.col(0).array() += offset;
+
+    igl::opengl::glfw::Viewer viewer;
+
+    viewer.data().set_mesh(Vmesh, Fmesh);
+    viewer.data().set_face_based(false);
+
+    viewer.append_mesh();
+    // viewer.data(1).set_points(Vcage, Eigen::RowVector3d(1, 0, 0));
+    viewer.data(1).set_edges(Vcage, Ecage, Eigen::RowVector3d(0, 0, 1));
+
+    viewer.append_mesh();
+    // viewer.data(2).set_points(VcageDeformed, Eigen::RowVector3d(1, 0, 0));
+    viewer.data(2).set_edges(VcageDeformed, EcageDeformed, Eigen::RowVector3d(0, 0, 1));
+
+    viewer.append_mesh();
+    viewer.data(3).set_mesh(Vdeformed, Fmesh);
+    viewer.data(3).set_face_based(false);
+    viewer.data(3).set_colors(Eigen::RowVector3d(1, 0, 0));
+
+    std::cout << "Starting viewer..." << std::endl;
+    viewer.launch();
+
+    return 0;
+}
