@@ -25,7 +25,8 @@ igl_include(glfw)
 #igl_include(restricted triangle)
 
 # Add your project files
-file(GLOB SRC_FILES *.cpp)
+include_directories(${CMAKE_SOURCE_DIR}/app/include)
+file(GLOB SRC_FILES app/src/*.cpp)
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 # Link igl (and the glfw module) to your project
