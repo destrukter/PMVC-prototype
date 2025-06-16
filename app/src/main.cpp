@@ -47,14 +47,15 @@ int main(int argc, char *argv[])
     igl::edges(Fcage, Ecage);
     igl::edges(FcageDeformed, EcageDeformed);
 
-    // TODO add calculation
+    // TODO add calculation for PMVC
     Eigen::MatrixXd weights;
+    computeMVC(Vcage, Fcage, Vmesh, weights);
     // Eigen::MatrixXd weights = computePMVCForMesh(Vmesh, Vcage, Fcage);
 
-    Eigen::MatrixXd Vdeformed = applyDeformation(weights, VcageDeformed);
+    Eigen::MatrixXd VmeshDeformed = applyDeformation(weights, VcageDeformed);
 
     double offset = (Vmesh.col(0).maxCoeff() - Vmesh.col(0).minCoeff()) * 1.5;
-    Vdeformed.col(0).array() += offset;
+    VmeshDeformed.col(0).array() += offset;
     VcageDeformed.col(0).array() += offset;
 
     igl::opengl::glfw::Viewer viewer;
@@ -71,7 +72,7 @@ int main(int argc, char *argv[])
     viewer.data(2).set_edges(VcageDeformed, EcageDeformed, Eigen::RowVector3d(0, 0, 1));
 
     viewer.append_mesh();
-    viewer.data(3).set_mesh(Vdeformed, Fmesh);
+    viewer.data(3).set_mesh(VmeshDeformed, Fmesh);
     viewer.data(3).set_face_based(false);
     viewer.data(3).set_colors(Eigen::RowVector3d(1, 0, 0));
 

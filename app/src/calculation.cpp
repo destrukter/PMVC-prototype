@@ -88,7 +88,7 @@ applyDeformation(
     const Eigen::MatrixXd &weights,
     const Eigen::MatrixXd &VdeformedCage)
 {
-    return weights * VdeformedCage; // Each vertex is a weighted sum of deformed cage vertices
+    return weights.transpose() * VdeformedCage; // Each vertex is a weighted sum of deformed cage vertices
 }
 
 bool fileExists(const std::string &path)
