@@ -183,6 +183,48 @@ Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &f
     return frustum;
 }
 
+Mesh build_closed_prism_around_face(
+    const Eigen::MatrixXd &FV,
+    double d)
+{
+    Mesh prism;
+
+    // Compute face normal (convert rows to cols)
+    Eigen::Vector3d v0 = FV.row(0).transpose();
+    Eigen::Vector3d v1 = FV.row(1).transpose();
+    Eigen::Vector3d v2 = FV.row(2).transpose();
+
+    Eigen::Vector3d normal = (v1 - v0).cross(v2 - v0).normalized();
+
+    // Extrude vertices along normal by distance d
+    Eigen::MatrixXd top(3, 3);
+    for (int i = 0; i < 3; ++i)
+        top.row(i) = FV.row(i) + d * normal.transpose();
+
+    // Build vertices: base + top
+    prism.V.resize(6, 3);
+    prism.V << FV, top;
+
+    prism.F.resize(8, 3);
+    int f = 0;
+
+    // Base face
+    prism.F.row(f++) << 0, 1, 2;
+
+    // Top face (reverse orientation)
+    prism.F.row(f++) << 5, 4, 3;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        int i_next = (i + 1) % 3;
+
+        prism.F.row(f++) << i, i_next, i_next + 3;
+        prism.F.row(f++) << i, i_next + 3, i + 3;
+    }
+
+    return prism;
+}
+
 Mesh clip_face_along_visibility(
     const Eigen::MatrixXd &cage_V,
     const Eigen::MatrixXi &cage_F,
@@ -201,14 +243,21 @@ Mesh clip_face_along_visibility(
     Eigen::Vector3d face_center = FV.colwise().mean();
     Mesh frustum = build_visibility_frustum(v_pos, face_center);
 
+    // extrude by a small amount, say 0.01
+    Mesh prism = build_closed_prism_around_face(FV, 0.1);
+
+    // Then do boolean with prism instead of FV, FF
     Eigen::MatrixXd CV;
     Eigen::MatrixXi CF;
-    igl::copyleft::cgal::mesh_boolean(FV, FF, frustum.V, frustum.F, igl::MESH_BOOLEAN_TYPE_INTERSECT, CV, CF);
+    igl::copyleft::cgal::mesh_boolean(
+        prism.V, prism.F,
+        frustum.V, frustum.F,
+        igl::MESH_BOOLEAN_TYPE_INTERSECT,
+        CV, CF);
 
     Mesh result;
     result.V = CV;
     result.F = CF;
-
     return result;
 }
 

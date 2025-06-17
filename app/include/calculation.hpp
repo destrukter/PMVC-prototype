@@ -78,4 +78,8 @@ void computePMVC_GPU_ours(
     const Eigen::MatrixXd &obj_V,
     Eigen::MatrixXd &pmvc_coords);
 
+Mesh build_closed_prism_around_face(
+    const Eigen::MatrixXd &FV,
+    double d);
+
 #endif // CALCULATION_HPP
