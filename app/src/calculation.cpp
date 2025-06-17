@@ -184,9 +184,9 @@ Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &f
 }
 
 Mesh clip_face_along_visibility(
-    const Eigen::Vector3d &v_pos,
     const Eigen::MatrixXd &cage_V,
     const Eigen::MatrixXi &cage_F,
+    const Eigen::Vector3d &v_pos,
     int face_idx)
 {
     using namespace igl::copyleft::cgal;
@@ -212,13 +212,13 @@ Mesh clip_face_along_visibility(
     return result;
 }
 
-void compute_pmvc(
-    const Eigen::MatrixXd &obj_V,
+void computePMVC_CPU(
     const Eigen::MatrixXd &cage_V,
     const Eigen::MatrixXi &cage_F,
-    Eigen::MatrixXd &mvc_coords)
+    const Eigen::MatrixXd &obj_V,
+    Eigen::MatrixXd &pmvc_coords)
 {
-    mvc_coords.resize(obj_V.rows(), cage_V.rows());
+    pmvc_coords.resize(obj_V.rows(), cage_V.rows());
 
     for (int vi = 0; vi < obj_V.rows(); ++vi)
     {
@@ -229,7 +229,7 @@ void compute_pmvc(
 
         for (int fi = 0; fi < cage_F.rows(); ++fi)
         {
-            Mesh clipped = clip_face_along_visibility(v_pos, cage_V, cage_F, fi);
+            Mesh clipped = clip_face_along_visibility(cage_V, cage_F, v_pos, fi);
 
             if (clipped.F.rows() > 0)
             {
@@ -241,7 +241,7 @@ void compute_pmvc(
 
         if (clip_Vs.empty())
         {
-            mvc_coords.row(vi).setZero();
+            pmvc_coords.row(vi).setZero();
             continue;
         }
 
@@ -264,6 +264,14 @@ void compute_pmvc(
         Eigen::VectorXd weights;
         Eigen::VectorXd w_weights;
         computeMVCForOneVertexSimple(temp_V, temp_F, v_pos, weights, w_weights);
-        mvc_coords.row(vi) = weights.transpose();
+        pmvc_coords.row(vi) = weights.transpose();
     }
+}
+
+void computePMVC_GPU_lipman(
+    const Eigen::MatrixXd &cage_V,
+    const Eigen::MatrixXi &cage_F,
+    const Eigen::MatrixXd &obj_V,
+    Eigen::MatrixXd &pmvc_coords)
+{
 }

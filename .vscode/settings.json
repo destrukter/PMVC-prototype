@@ -100,6 +100,8 @@
         "mprealsupport": "cpp",
         "openglsupport": "cpp",
         "splines": "cpp",
-        "*.expression": "cpp"
-    }
+        "*.expression": "cpp",
+        "dense": "cpp"
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/clang"
 }

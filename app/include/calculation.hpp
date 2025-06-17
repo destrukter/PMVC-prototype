@@ -55,15 +55,27 @@ Mesh construct_temporary_mesh(const std::vector<Face> &faces);
 Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &face_center);
 
 Mesh clip_face_along_visibility(
-    const Eigen::Vector3d &v_pos,
     const Eigen::MatrixXd &cage_V,
     const Eigen::MatrixXi &cage_F,
+    const Eigen::Vector3d &v_pos,
     int face_idx);
 
-void compute_pmvc(
-    const Eigen::MatrixXd &obj_V,
+void computePMVC_CPU(
     const Eigen::MatrixXd &cage_V,
     const Eigen::MatrixXi &cage_F,
-    Eigen::MatrixXd &mvc_coords);
+    const Eigen::MatrixXd &obj_V,
+    Eigen::MatrixXd &pmvc_coords);
+
+void computePMVC_GPU_lipman(
+    const Eigen::MatrixXd &cage_V,
+    const Eigen::MatrixXi &cage_F,
+    const Eigen::MatrixXd &obj_V,
+    Eigen::MatrixXd &pmvc_coords);
+
+void computePMVC_GPU_ours(
+    const Eigen::MatrixXd &cage_V,
+    const Eigen::MatrixXi &cage_F,
+    const Eigen::MatrixXd &obj_V,
+    Eigen::MatrixXd &pmvc_coords);
 
 #endif // CALCULATION_HPP

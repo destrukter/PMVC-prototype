@@ -44,13 +44,13 @@ int main(int argc, char *argv[])
         }
         else
         {
-            std::cerr << "Need to specify --MVC or --PMVC as 4th argument" << std::endl;
+            std::cerr << "Need to specify --MVC or --PMVCCPU as 4th argument" << std::endl;
             return 1;
         }
     }
     else
     {
-        std::cerr << "Call needs to have to following structure: ./example pathtomesh.obj pathtocage.obj pathtodeformedcage.obj and --MVC or --PMVC as 4th argument" << std::endl;
+        std::cerr << "Call needs to have to following structure: ./example pathtomesh.obj pathtocage.obj pathtodeformedcage.obj and --MVC or --PMVCCPU as 4th argument" << std::endl;
         return 1;
     }
 
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     }
     else if (pmvc_cpu)
     {
-        compute_pmvc(Vmesh, Vcage, Fcage, weights);
+        computePMVC_CPU(Vcage, Fcage, Vmesh, weights);
     }
 
     Eigen::MatrixXd VmeshDeformed = applyDeformation(weights, VcageDeformed);
