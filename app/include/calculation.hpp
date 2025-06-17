@@ -14,22 +14,19 @@
 
 struct Face
 {
-    std::array<int, 3> vi; // indices into mesh vertices
+    std::array<int, 3> vi;
 };
 
 struct Mesh
 {
-    Eigen::MatrixXd V; // vertices (n x 3)
-    Eigen::MatrixXi F; // faces (m x 3)
+    Eigen::MatrixXd V;
+    Eigen::MatrixXi F;
 };
 
-/// Apply deformation using PMVC weights and deformed cage.
 Eigen::MatrixXd applyDeformation(
-    const Eigen::MatrixXd &weights,      // PMVC weights (PxN)
-    const Eigen::MatrixXd &VdeformedCage // deformed cage vertices (Nx3)
-);
+    const Eigen::MatrixXd &weights,
+    const Eigen::MatrixXd &VdeformedCage);
 
-/// Utility to check if a file exists.
 bool fileExists(const std::string &path);
 
 /// Compute Mean Value Coordinates (MVC) for a single vertex in a robust way.
@@ -46,7 +43,7 @@ void computeMVC(
     const Eigen::MatrixXd &C,     // cage vertices (Nx3)
     const Eigen::MatrixXi &CF,    // cage faces (Mx3)
     const Eigen::MatrixXd &eta_m, // query points (Px3)
-    Eigen::VectorXd &phi          // output weights (NxP)
+    Eigen::MatrixXd &phi          // output weights (NxP)
 );
 
 bool is_face_visible(const Eigen::Vector3d &v, const Face &f, const Mesh &cage);

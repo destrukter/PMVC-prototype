@@ -5,7 +5,7 @@ applyDeformation(
     const Eigen::MatrixXd &weights,
     const Eigen::MatrixXd &VdeformedCage)
 {
-    return weights.transpose() * VdeformedCage; // Each vertex is a weighted sum of deformed cage vertices
+    return weights.transpose() * VdeformedCage;
 }
 
 bool fileExists(const std::string &path)
@@ -137,7 +137,7 @@ void computeMVCForOneVertexSimple(Eigen::MatrixXd const &C, Eigen::MatrixXi cons
 }
 
 void computeMVC(const Eigen::MatrixXd &C, const Eigen::MatrixXi &CF, Eigen::MatrixXd const &eta_m,
-                Eigen::VectorXd &phi)
+                Eigen::MatrixXd &phi)
 {
     phi.resize(C.rows(), eta_m.rows());
     Eigen::VectorXd w_weights(C.rows());
@@ -165,7 +165,6 @@ Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &f
     double size = 1e5;
     Eigen::Vector3d far_center = v + dir * distance;
 
-    // Vertices
     frustum.V.resize(5, 3);
     frustum.V.row(0) = v;
     frustum.V.row(1) = far_center + size * (up + right);
@@ -173,7 +172,6 @@ Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &f
     frustum.V.row(3) = far_center + size * (-up - right);
     frustum.V.row(4) = far_center + size * (up - right);
 
-    // Faces
     frustum.F.resize(6, 3);
     frustum.F << 0, 1, 2,
         0, 2, 3,
@@ -193,7 +191,6 @@ Mesh clip_face_along_visibility(
 {
     using namespace igl::copyleft::cgal;
 
-    // Extract face
     Eigen::MatrixXd FV(3, 3);
     for (int i = 0; i < 3; ++i)
         FV.row(i) = cage_V.row(cage_F(face_idx, i));
@@ -201,11 +198,9 @@ Mesh clip_face_along_visibility(
     Eigen::MatrixXi FF(1, 3);
     FF << 0, 1, 2;
 
-    // Build frustum
     Eigen::Vector3d face_center = FV.colwise().mean();
     Mesh frustum = build_visibility_frustum(v_pos, face_center);
 
-    // Perform boolean
     Eigen::MatrixXd CV;
     Eigen::MatrixXi CF;
     igl::copyleft::cgal::mesh_boolean(FV, FF, frustum.V, frustum.F, igl::MESH_BOOLEAN_TYPE_INTERSECT, CV, CF);
@@ -234,19 +229,16 @@ void compute_pmvc(
 
         for (int fi = 0; fi < cage_F.rows(); ++fi)
         {
-            // Could add visibility quick test here
             Mesh clipped = clip_face_along_visibility(v_pos, cage_V, cage_F, fi);
 
             if (clipped.F.rows() > 0)
             {
-                // collect clipped faces
                 clip_Vs.push_back(clipped.V);
                 clip_Fs.push_back(clipped.F.array() + offset);
                 offset += clipped.V.rows();
             }
         }
 
-        // Combine clipped pieces
         if (clip_Vs.empty())
         {
             mvc_coords.row(vi).setZero();
@@ -270,7 +262,8 @@ void compute_pmvc(
         }
 
         Eigen::VectorXd weights;
-        computeMVC(temp_V, temp_F, v_pos, weights);
+        Eigen::VectorXd w_weights;
+        computeMVCForOneVertexSimple(temp_V, temp_F, v_pos, weights, w_weights);
         mvc_coords.row(vi) = weights.transpose();
     }
 }

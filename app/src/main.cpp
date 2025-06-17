@@ -25,11 +25,33 @@ int main(int argc, char *argv[])
     std::string cagePath = "";
     std::string deformedCagePath = "";
 
-    if (argc == 4)
+    bool mvc = false;
+    bool pmvc_cpu = false;
+
+    if (argc == 5)
     {
         meshPath = argv[1];
         cagePath = argv[2];
         deformedCagePath = argv[3];
+        std::string arg = argv[4];
+        if (arg == "--MVC")
+        {
+            mvc = true;
+        }
+        else if (arg == "--PMVCCPU")
+        {
+            pmvc_cpu = true;
+        }
+        else
+        {
+            std::cerr << "Need to specify --MVC or --PMVC as 4th argument" << std::endl;
+            return 1;
+        }
+    }
+    else
+    {
+        std::cerr << "Call needs to have to following structure: ./example pathtomesh.obj pathtocage.obj pathtodeformedcage.obj and --MVC or --PMVC as 4th argument" << std::endl;
+        return 1;
     }
 
     const std::string defaultMesh = "/home/destukter/Thesis/PMVC-test/meshes/armadilloman.obj";
@@ -48,8 +70,14 @@ int main(int argc, char *argv[])
     igl::edges(FcageDeformed, EcageDeformed);
 
     Eigen::MatrixXd weights;
-    // computeMVC(Vcage, Fcage, Vmesh, weights);
-    compute_pmvc(Vmesh, Vcage, Fcage, weights);
+    if (mvc)
+    {
+        computeMVC(Vcage, Fcage, Vmesh, weights);
+    }
+    else if (pmvc_cpu)
+    {
+        compute_pmvc(Vmesh, Vcage, Fcage, weights);
+    }
 
     Eigen::MatrixXd VmeshDeformed = applyDeformation(weights, VcageDeformed);
 
