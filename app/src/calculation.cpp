@@ -220,7 +220,7 @@ void computeMVCForOneVertexSimple(Eigen::MatrixXd const &C, Eigen::MatrixXi cons
 }
 
 void computeMVC(const Eigen::MatrixXd &C, const Eigen::MatrixXi &CF, Eigen::MatrixXd const &eta_m,
-                Eigen::MatrixXd &phi)
+                Eigen::VectorXd &phi)
 {
     phi.resize(C.rows(), eta_m.rows());
     Eigen::VectorXd w_weights(C.rows());
@@ -234,6 +234,126 @@ void computeMVC(const Eigen::MatrixXd &C, const Eigen::MatrixXi &CF, Eigen::Matr
     }
 }
 
-void computePMVCwithMVC()
+Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &face_center)
 {
+    Mesh frustum;
+
+    Eigen::Vector3d dir = face_center - v;
+    dir.normalize();
+
+    Eigen::Vector3d up = dir.unitOrthogonal();
+    Eigen::Vector3d right = dir.cross(up);
+
+    double distance = 1e5;
+    double size = 1e5;
+    Eigen::Vector3d far_center = v + dir * distance;
+
+    // Vertices
+    frustum.V.resize(5, 3);
+    frustum.V.row(0) = v;
+    frustum.V.row(1) = far_center + size * (up + right);
+    frustum.V.row(2) = far_center + size * (-up + right);
+    frustum.V.row(3) = far_center + size * (-up - right);
+    frustum.V.row(4) = far_center + size * (up - right);
+
+    // Faces
+    frustum.F.resize(6, 3);
+    frustum.F << 0, 1, 2,
+        0, 2, 3,
+        0, 3, 4,
+        0, 4, 1,
+        1, 2, 3,
+        1, 3, 4;
+
+    return frustum;
+}
+
+Mesh clip_face_along_visibility(
+    const Eigen::Vector3d &v_pos,
+    const Eigen::MatrixXd &cage_V,
+    const Eigen::MatrixXi &cage_F,
+    int face_idx)
+{
+    using namespace igl::copyleft::cgal;
+
+    // Extract face
+    Eigen::MatrixXd FV(3, 3);
+    for (int i = 0; i < 3; ++i)
+        FV.row(i) = cage_V.row(cage_F(face_idx, i));
+
+    Eigen::MatrixXi FF(1, 3);
+    FF << 0, 1, 2;
+
+    // Build frustum
+    Eigen::Vector3d face_center = FV.colwise().mean();
+    Mesh frustum = build_visibility_frustum(v_pos, face_center);
+
+    // Perform boolean
+    Eigen::MatrixXd CV;
+    Eigen::MatrixXi CF;
+    igl::copyleft::cgal::mesh_boolean(FV, FF, frustum.V, frustum.F, igl::MESH_BOOLEAN_TYPE_INTERSECT, CV, CF);
+
+    Mesh result;
+    result.V = CV;
+    result.F = CF;
+
+    return result;
+}
+
+void compute_pmvc(
+    const Eigen::MatrixXd &obj_V,
+    const Eigen::MatrixXd &cage_V,
+    const Eigen::MatrixXi &cage_F,
+    Eigen::MatrixXd &mvc_coords)
+{
+    mvc_coords.resize(obj_V.rows(), cage_V.rows());
+
+    for (int vi = 0; vi < obj_V.rows(); ++vi)
+    {
+        const Eigen::Vector3d v_pos = obj_V.row(vi);
+        std::vector<Eigen::MatrixXd> clip_Vs;
+        std::vector<Eigen::MatrixXi> clip_Fs;
+        int offset = 0;
+
+        for (int fi = 0; fi < cage_F.rows(); ++fi)
+        {
+            // Could add visibility quick test here
+            Mesh clipped = clip_face_along_visibility(v_pos, cage_V, cage_F, fi);
+
+            if (clipped.F.rows() > 0)
+            {
+                // collect clipped faces
+                clip_Vs.push_back(clipped.V);
+                clip_Fs.push_back(clipped.F.array() + offset);
+                offset += clipped.V.rows();
+            }
+        }
+
+        // Combine clipped pieces
+        if (clip_Vs.empty())
+        {
+            mvc_coords.row(vi).setZero();
+            continue;
+        }
+
+        Eigen::MatrixXd temp_V(offset, 3);
+        Eigen::MatrixXi temp_F;
+        {
+            int vpos = 0, fpos = 0;
+            std::vector<Eigen::MatrixXi> F_all;
+
+            for (size_t i = 0; i < clip_Vs.size(); ++i)
+            {
+                temp_V.block(vpos, 0, clip_Vs[i].rows(), 3) = clip_Vs[i];
+                vpos += clip_Vs[i].rows();
+                F_all.push_back(clip_Fs[i]);
+                fpos += clip_Fs[i].rows();
+            }
+            F_all.push_back(temp_F);
+        }
+
+        Eigen::VectorXd weights;
+        computeMVC(temp_V, temp_F, v_pos, weights);
+        mvc_coords.row(vi) = weights.transpose();
+    }
 }

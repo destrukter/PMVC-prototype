@@ -8,6 +8,9 @@
 #include <igl/per_face_normals.h>
 #include <fstream>
 #include <string>
+#include <igl/copyleft/cgal/mesh_boolean.h>
+#include <vector>
+#include <array>
 
 /*
 /// Compute Point Mean Value Coordinates (PMVC) for a single query point.
@@ -26,6 +29,17 @@ Eigen::MatrixXd computePMVCForMesh(
     const Eigen::MatrixXi &Fcage  // cage faces (Mx3)
 );
 */
+
+struct Face
+{
+    std::array<int, 3> vi; // indices into mesh vertices
+};
+
+struct Mesh
+{
+    Eigen::MatrixXd V; // vertices (n x 3)
+    Eigen::MatrixXi F; // faces (m x 3)
+};
 
 /// Apply deformation using PMVC weights and deformed cage.
 Eigen::MatrixXd applyDeformation(
@@ -50,7 +64,27 @@ void computeMVC(
     const Eigen::MatrixXd &C,     // cage vertices (Nx3)
     const Eigen::MatrixXi &CF,    // cage faces (Mx3)
     const Eigen::MatrixXd &eta_m, // query points (Px3)
-    Eigen::MatrixXd &phi          // output weights (NxP)
+    Eigen::VectorXd &phi          // output weights (NxP)
 );
+
+bool is_face_visible(const Eigen::Vector3d &v, const Face &f, const Mesh &cage);
+
+std::vector<Face> clip_face_along_visibility(const Eigen::Vector3d &v, const Face &f, const Mesh &cage);
+
+Mesh construct_temporary_mesh(const std::vector<Face> &faces);
+
+Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &face_center);
+
+Mesh clip_face_along_visibility(
+    const Eigen::Vector3d &v_pos,
+    const Eigen::MatrixXd &cage_V,
+    const Eigen::MatrixXi &cage_F,
+    int face_idx);
+
+void compute_pmvc(
+    const Eigen::MatrixXd &obj_V,
+    const Eigen::MatrixXd &cage_V,
+    const Eigen::MatrixXi &cage_F,
+    Eigen::MatrixXd &mvc_coords);
 
 #endif // CALCULATION_HPP
