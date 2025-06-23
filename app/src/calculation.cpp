@@ -161,8 +161,8 @@ Mesh build_visibility_frustum(const Eigen::Vector3d &v, const Eigen::Vector3d &f
     Eigen::Vector3d up = dir.unitOrthogonal();
     Eigen::Vector3d right = dir.cross(up);
 
-    double distance = 1e5;
-    double size = 1e5;
+    double distance = 100.0;
+    double size = 100.0;
     Eigen::Vector3d far_center = v + dir * distance;
 
     frustum.V.resize(5, 3);
@@ -222,6 +222,14 @@ Mesh build_closed_prism_around_face(
         prism.F.row(f++) << i, i_next + 3, i + 3;
     }
 
+    bool isManifold = igl::is_edge_manifold(prism.F);
+
+    if (!isManifold)
+    {
+        std::cerr << "Generated prism mesh is not edge-manifold!" << std::endl;
+    }
+    igl::writeOBJ("prism.obj", prism.V, prism.F);
+
     return prism;
 }
 
@@ -242,6 +250,7 @@ Mesh clip_face_along_visibility(
 
     Eigen::Vector3d face_center = FV.colwise().mean();
     Mesh frustum = build_visibility_frustum(v_pos, face_center);
+    igl::writeOBJ("frustum.obj", frustum.V, frustum.F);
 
     // extrude by a small amount, say 0.01
     Mesh prism = build_closed_prism_around_face(FV, 0.1);
@@ -249,6 +258,13 @@ Mesh clip_face_along_visibility(
     // Then do boolean with prism instead of FV, FF
     Eigen::MatrixXd CV;
     Eigen::MatrixXi CF;
+
+    // Eigen::MatrixXd V1_fixed, V2_fixed;
+    // Eigen::MatrixXi F1_fixed, F2_fixed;
+
+    // fix_mesh_for_boolean(prism.V, prism.F, V1_fixed, F1_fixed);
+    // fix_mesh_for_boolean(frustum.V, frustum.F, V2_fixed, F2_fixed);
+
     igl::copyleft::cgal::mesh_boolean(
         prism.V, prism.F,
         frustum.V, frustum.F,

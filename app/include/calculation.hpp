@@ -11,6 +11,13 @@
 #include <igl/copyleft/cgal/mesh_boolean.h>
 #include <vector>
 #include <array>
+#include <igl/is_edge_manifold.h>
+#include <igl/remove_unreferenced.h>
+#include <igl/orient_outward.h>
+#include <igl/centroid.h>
+#include <igl/adjacency_matrix.h>
+#include <igl/connected_components.h>
+#include <stdexcept>
 
 struct Face
 {
@@ -81,5 +88,11 @@ void computePMVC_GPU_ours(
 Mesh build_closed_prism_around_face(
     const Eigen::MatrixXd &FV,
     double d);
+
+void fix_mesh_for_boolean(
+    const Eigen::MatrixXd &V_in,
+    const Eigen::MatrixXi &F_in,
+    Eigen::MatrixXd &V_out,
+    Eigen::MatrixXi &F_out);
 
 #endif // CALCULATION_HPP
