@@ -1,4 +1,85 @@
 #include "calculation.hpp"
+#include <CGAL/Polygon_mesh_processing/corefinement.h>
+#include <CGAL/Surface_mesh.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <unordered_map>
+
+typedef CGAL::Exact_predicates_inexact_constructions_kernel Kernel;
+typedef Kernel::Point_3 Point_3;
+typedef CGAL::Surface_mesh<Point_3> SurfaceMesh;
+
+SurfaceMesh eigenToSurfaceMesh(const Eigen::MatrixXd &V, const Eigen::MatrixXi &F)
+{
+    SurfaceMesh mesh;
+    std::vector<SurfaceMesh::Vertex_index> vertex_indices;
+
+    // Add vertices
+    for (int i = 0; i < V.rows(); ++i)
+    {
+        Point_3 p(V(i, 0), V(i, 1), V(i, 2));
+        vertex_indices.push_back(mesh.add_vertex(p));
+    }
+
+    // Add faces
+    for (int i = 0; i < F.rows(); ++i)
+    {
+        std::vector<SurfaceMesh::Vertex_index> face;
+        for (int j = 0; j < F.cols(); ++j)
+        {
+            face.push_back(vertex_indices[F(i, j)]);
+        }
+        mesh.add_face(face);
+    }
+
+    return mesh;
+}
+
+void surfaceMeshToEigen(const SurfaceMesh &mesh, Eigen::MatrixXd &V, Eigen::MatrixXi &F)
+{
+    std::unordered_map<SurfaceMesh::Vertex_index, int> vertex_map;
+    int vi = 0;
+
+    // Store vertices
+    V.resize(mesh.number_of_vertices(), 3);
+    for (const auto &v : mesh.vertices())
+    {
+        const Point_3 &p = mesh.point(v);
+        V.row(vi) << p.x(), p.y(), p.z();
+        vertex_map[v] = vi;
+        ++vi;
+    }
+
+    // Count triangle faces
+    int face_count = 0;
+    for (const auto &f : mesh.faces())
+    {
+        int deg = 0;
+        for (auto h : mesh.halfedges_around_face(mesh.halfedge(f)))
+            ++deg;
+        if (deg == 3)
+            ++face_count;
+    }
+
+    // Store face indices
+    F.resize(face_count, 3);
+    int fi = 0;
+    for (const auto &f : mesh.faces())
+    {
+        std::vector<int> indices;
+        for (auto h : mesh.halfedges_around_face(mesh.halfedge(f)))
+        {
+            auto v = mesh.target(h);
+            indices.push_back(vertex_map[v]);
+        }
+
+        if (indices.size() != 3)
+            continue;
+
+        for (int j = 0; j < 3; ++j)
+            F(fi, j) = indices[j];
+        ++fi;
+    }
+}
 
 Eigen::MatrixXd
 applyDeformation(
@@ -256,8 +337,6 @@ Mesh clip_face_along_visibility(
     Mesh prism = build_closed_prism_around_face(FV, 0.1);
 
     // Then do boolean with prism instead of FV, FF
-    Eigen::MatrixXd CV;
-    Eigen::MatrixXi CF;
 
     // Eigen::MatrixXd V1_fixed, V2_fixed;
     // Eigen::MatrixXi F1_fixed, F2_fixed;
@@ -265,16 +344,26 @@ Mesh clip_face_along_visibility(
     // fix_mesh_for_boolean(prism.V, prism.F, V1_fixed, F1_fixed);
     // fix_mesh_for_boolean(frustum.V, frustum.F, V2_fixed, F2_fixed);
 
-    igl::copyleft::cgal::mesh_boolean(
-        prism.V, prism.F,
-        frustum.V, frustum.F,
-        igl::MESH_BOOLEAN_TYPE_INTERSECT,
-        CV, CF);
+    // Assume Eigen::MatrixXd V; Eigen::MatrixXi F;
+    SurfaceMesh meshPrism = eigenToSurfaceMesh(prism.V, prism.F);
+    SurfaceMesh meshFrustrum = eigenToSurfaceMesh(frustum.V, frustum.F);
 
-    Mesh result;
-    result.V = CV;
-    result.F = CF;
-    return result;
+    // Modify mesh, do boolean, etc.
+
+    // Convert back to Eigen
+    Eigen::MatrixXd V_out;
+    Eigen::MatrixXi F_out;
+
+    SurfaceMesh result;
+    CGAL::Polygon_mesh_processing::corefine_and_compute_intersection(meshPrism, meshFrustrum, result);
+
+    surfaceMeshToEigen(result, V_out, F_out);
+
+    Mesh finalResult;
+
+    finalResult.V = V_out;
+    finalResult.F = F_out;
+    return finalResult;
 }
 
 void computePMVC_CPU(
@@ -311,23 +400,40 @@ void computePMVC_CPU(
         }
 
         Eigen::MatrixXd temp_V(offset, 3);
-        Eigen::MatrixXi temp_F;
+        int vpos = 0;
+        for (size_t i = 0; i < clip_Vs.size(); ++i)
         {
-            int vpos = 0, fpos = 0;
-            std::vector<Eigen::MatrixXi> F_all;
-
-            for (size_t i = 0; i < clip_Vs.size(); ++i)
-            {
-                temp_V.block(vpos, 0, clip_Vs[i].rows(), 3) = clip_Vs[i];
-                vpos += clip_Vs[i].rows();
-                F_all.push_back(clip_Fs[i]);
-                fpos += clip_Fs[i].rows();
-            }
-            F_all.push_back(temp_F);
+            temp_V.block(vpos, 0, clip_Vs[i].rows(), 3) = clip_Vs[i];
+            vpos += clip_Vs[i].rows();
         }
 
-        Eigen::VectorXd weights;
-        Eigen::VectorXd w_weights;
+        int total_faces = 0;
+        for (const auto &F : clip_Fs)
+            total_faces += F.rows();
+
+        Eigen::MatrixXi temp_F(total_faces, 3);
+        int fpos = 0;
+        for (const auto &F : clip_Fs)
+        {
+            temp_F.block(fpos, 0, F.rows(), 3) = F;
+            fpos += F.rows();
+        }
+
+        if (temp_V.rows() == 0 || temp_F.rows() == 0)
+        {
+            pmvc_coords.row(vi).setZero();
+            continue;
+        }
+        if (temp_F.minCoeff() < 0 || temp_F.maxCoeff() >= temp_V.rows())
+        {
+            std::cerr << "Invalid face indices at vertex " << vi << std::endl;
+            pmvc_coords.row(vi).setZero();
+            continue;
+        }
+
+        Eigen::VectorXd weights(temp_V.rows());
+        Eigen::VectorXd w_weights(temp_V.rows());
+
         computeMVCForOneVertexSimple(temp_V, temp_F, v_pos, weights, w_weights);
         pmvc_coords.row(vi) = weights.transpose();
     }
