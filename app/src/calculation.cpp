@@ -438,11 +438,3 @@ void computePMVC_CPU(
         pmvc_coords.row(vi) = weights.transpose();
     }
 }
-
-void computePMVC_GPU_lipman(
-    const Eigen::MatrixXd &cage_V,
-    const Eigen::MatrixXi &cage_F,
-    const Eigen::MatrixXd &obj_V,
-    Eigen::MatrixXd &pmvc_coords)
-{
-}
